@@ -55,11 +55,11 @@ module Chrono
   class Month < Year
     def initialize *args
       rev_opt_args args, 2
-      y, mo = args
+      y, m = args
 
       super y
 
-      @month = (mo || ::Time.new.month).to_i
+      @month = (m || ::Time.new.month).to_i
 
       correct if self.class == Month
     end
@@ -113,8 +113,8 @@ module Chrono
   class Date < Month
     def initialize *args
       rev_opt_args args, 3
-      y, mo, d = args
-      super y, mo
+      y, m, d = args
+      super y, m
       @day = (d || ::Time.new.day).to_i
 
       correct if self.class == Date
@@ -149,6 +149,10 @@ module Chrono
       self + -days
     end
 
+    def to_date
+      ::Date.new(@year, @month, @day)
+    end
+
     protected
 
     def correct
@@ -169,22 +173,19 @@ module Chrono
 
   class Time < Date
     def initialize *args
-      rev_opt_args args, 6
-      y, mo, d, h, m, s = args
+      rev_opt_args args, 4
+      y, m, d, s = args
 
-      super y, mo, d
+      super y, m, d
 
-      t = ::Time.new
-      h ||= t.hour
-      m ||= t.min
-      s ||= time_sec(t)
+      s ||= Chrono.seconds(::Time.new)
 
-      @seconds = hms_to_s(h, m, s)
+      @seconds = s
 
       correct if self.class == Time
     end
 
-    def day
+    def date
       Date.new @year, @month, @day
     end
 
@@ -196,18 +197,22 @@ module Chrono
       self
     end
 
+    def to_f
+      @seconds.to_f
+    end
+
     def to_i
-      @seconds
+      to_f.to_i
     end
 
     def to_s
-      "#{super} %02d:%02d:%02f" % s_to_hms(@seconds)
+      "#{super} %02d:%02d:%02f" % Chrono.hms(@seconds)
     end
 
     def + seconds
       result = to_time + seconds
 
-      self.class.new(result.year, result.month, result.day, result.hour, result.min, time_sec(result))
+      self.class.new(result.year, result.month, result.day, Chrono.seconds(result))
     end
 
     def - seconds
@@ -215,25 +220,7 @@ module Chrono
     end
 
     def to_time
-      ::Time.utc(@year, @month, @day, *s_to_hms(@seconds))
-    end
-
-    private
-
-    def hms_to_s h, m, s
-      3600 * h + 60 * m + s
-    end
-
-    def s_to_hms s
-      h = s.to_i / 3600
-      m = (s % 3600).to_i / 60
-      s %= 60
-      [h, m, s]
-    end
-
-    # get seconds w/ nanoseconds from a ::Time
-    def time_sec t
-      t.sec + (t.nsec > 0 ? t.nsec / 1_000_000_000.0 : 0)
+      ::Time.utc(@year, @month, @day, *Chrono.hms(@seconds))
     end
 
     protected
@@ -248,12 +235,32 @@ module Chrono
         @year = crct.year
         @month = crct.month
         @day = crct.day
-        @seconds = time_sec(crct)
+        @seconds = Chrono.seconds(crct)
 
         @corrected = true
       end
 
       @corrected
     end
+  end
+
+  # convert hour, minute, seconds to seconds in the day. Or get seconds in the day from a ::Time
+  def self.seconds *args
+    if args.length == 1
+      time = args[0]
+      3600 * time.hour + 60 * time.min + t.sec + (t.nsec > 0 ? t.nsec / 1_000_000_000.0 : 0)
+    elsif args.length == 3
+      h, m, s = args
+      3600 * h + 60 * m + s
+    else
+      raise ArgumentError, "wrong number of arguments (#{args.length} for 1, 3)"
+    end
+  end
+
+  def self.hms seconds
+    h = seconds.to_i / 3600
+    m = (seconds % 3600).to_i / 60
+    seconds %= 60
+    [h, m, seconds]
   end
 end
