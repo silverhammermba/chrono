@@ -38,10 +38,6 @@ module Chrono
       self + -years
     end
 
-    def month= month
-      Month.new(@year, month)
-    end
-
     protected
 
     def correct
@@ -63,7 +59,7 @@ module Chrono
 
       super y
 
-      @month = mo || ::Time.new.month
+      @month = (mo || ::Time.new.month).to_i
 
       correct if self.class == Month
     end
@@ -95,10 +91,6 @@ module Chrono
 
     def - months
       self + -months
-    end
-
-    def day= day
-      Date.new(@year, @month, day)
     end
 
     protected
@@ -155,10 +147,6 @@ module Chrono
 
     def - days
       self + -days
-    end
-
-    def hms= hms
-      Time.new(@year, @month, @day, *hms)
     end
 
     protected
