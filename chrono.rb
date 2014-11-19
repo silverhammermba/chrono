@@ -1,11 +1,12 @@
 require 'date'
+require 'pry'
 
 module Chrono
   class Year
     def initialize y = nil
       @year = (y || ::Time.new.year).to_i
 
-      correct_year
+      correct if self.class == Year
     end
 
     def corrected?
@@ -13,7 +14,7 @@ module Chrono
     end
 
     def strict
-      raise ArgumentError, "Invalid #{self.class} (should be #{to_s})" if @corrected
+      raise RangeError, "Invalid #{self.class} (should be #{to_s})" if @corrected
       self
     end
 
@@ -43,8 +44,8 @@ module Chrono
 
     protected
 
-    def correct_year
-      # no such thing as an invalid year
+    def correct
+      # year can't be invalid
       @corrected = false
     end
 
@@ -59,10 +60,12 @@ module Chrono
     def initialize *args
       rev_opt_args args, 2
       y, mo = args
+
       super y
+
       @month = mo || ::Time.new.month
 
-      correct_month
+      correct if self.class == Month
     end
 
     def year
@@ -72,7 +75,9 @@ module Chrono
     def year= y
       @year = y.to_i
 
-      correct_month
+      correct
+
+      self
     end
 
     def to_i
@@ -98,21 +103,18 @@ module Chrono
 
     protected
 
-    def correct_month
-      @corrected = correct_year
+    def correct
+      super
 
-      # check for correction
-      begin
-        Date.new(@year, @month)
-      rescue ArgumentError
-        correct = Date.new(@year, 1) >> (@month - 1)
-        @year = correct.year
-        @month = correct.month
-
-        @corrected = true
-      end
+      Date.new(@year, @month)
 
       @corrected
+    rescue ArgumentError
+      crct = Date.new(@year, 1) >> (@month - 1)
+      @year = crct.year
+      @month = crct.month
+
+      @corrected = true
     end
   end
 
@@ -123,7 +125,7 @@ module Chrono
       super y, mo
       @day = (d || ::Time.new.day).to_i
 
-      correct_day
+      correct if self.class == Day
     end
 
     def month
@@ -133,7 +135,9 @@ module Chrono
     def month= m
       @month = m.to_i
 
-      correct_day
+      correct
+
+      self
     end
 
     def to_i
@@ -155,22 +159,19 @@ module Chrono
 
     protected
 
-    def correct_day
-      @corrected = correct_month
+    def correct
+      super
 
-      # check for correction
-      begin
-        Date.new(@year, @month, @day)
-      rescue ArgumentError
-        correct = Date.new(@year, @month, 1) + (@day - 1)
-        @year = correct.year
-        @month = correct.month
-        @day = correct.day
-
-        @corrected = true
-      end
+      Date.new(@year, @month, @day)
 
       @corrected
+    rescue ArgumentError
+      crct = Date.new(@year, @month, 1) + (@day - 1)
+      @year = crct.year
+      @month = crct.month
+      @day = crct.day
+
+      @corrected = true
     end
   end
 
@@ -184,11 +185,11 @@ module Chrono
       t = ::Time.new
       h ||= t.hour
       m ||= t.min
-      s ||= t.sec + (t.nsec > 0 ? t.nsec / 1_000_000_000.0 : 0)
+      s ||= time_sec(t)
 
       @seconds = hms_to_s(h, m, s)
 
-      correct_time
+      correct if self.class == Time
     end
 
     def day
@@ -198,7 +199,9 @@ module Chrono
     def day= d
       @day = d.to_i
 
-      correct_time
+      correct
+
+      self
     end
 
     def to_i
@@ -212,10 +215,7 @@ module Chrono
     def + seconds
       result = to_time + seconds
 
-      sec = result.sec
-      sec += result.nsec / 1_000_000_000.0 if result.nsec > 0
-
-      self.class.new(result.year, result.month, result.day, result.hour, result.min, sec)
+      self.class.new(result.year, result.month, result.day, result.hour, result.min, time_sec(result))
     end
 
     def - seconds
@@ -239,18 +239,24 @@ module Chrono
       [h, m, s]
     end
 
+    # get seconds w/ nanoseconds from a ::Time
+    def time_sec t
+      t.sec + (t.nsec > 0 ? t.nsec / 1_000_000_000.0 : 0)
+    end
+
     protected
 
-    def correct_time
-      @corrected = correct_day
+    def correct
+      super
 
-      correct = ::Time.utc(@year, @month, @day) + @seconds
+      crct = ::Time.utc(@year, @month, @day) + @seconds
+
       # it's corrected if the date changed
-      if [correct.year, correct.month, correct.day] != [@year, @month, @day]
-        @year = correct.year
-        @month = correct.month
-        @day = correct.day
-        @seconds = correct.sec + (correct.nsec > 0 ? correct.nsec / 1_000_000_000.0 : 0)
+      if [crct.year, crct.month, crct.day] != [@year, @month, @day]
+        @year = crct.year
+        @month = crct.month
+        @day = crct.day
+        @seconds = time_sec(crct)
 
         @corrected = true
       end
