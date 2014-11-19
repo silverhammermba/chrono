@@ -89,7 +89,7 @@ module Chrono
     end
 
     def + months
-      result = Date.new(@year, @month) >> months
+      result = ::Date.new(@year, @month) >> months
       self.class.new(result.year, result.month)
     end
 
@@ -98,7 +98,7 @@ module Chrono
     end
 
     def day= day
-      Day.new(@year, @month, day)
+      Date.new(@year, @month, day)
     end
 
     protected
@@ -106,11 +106,11 @@ module Chrono
     def correct
       super
 
-      Date.new(@year, @month)
+      ::Date.new(@year, @month)
 
       @corrected
     rescue ArgumentError
-      crct = Date.new(@year, 1) >> (@month - 1)
+      crct = ::Date.new(@year, 1) >> (@month - 1)
       @year = crct.year
       @month = crct.month
 
@@ -118,14 +118,14 @@ module Chrono
     end
   end
 
-  class Day < Month
+  class Date < Month
     def initialize *args
       rev_opt_args args, 3
       y, mo, d = args
       super y, mo
       @day = (d || ::Time.new.day).to_i
 
-      correct if self.class == Day
+      correct if self.class == Date
     end
 
     def month
@@ -149,7 +149,7 @@ module Chrono
     end
 
     def + days
-      result = Date.new(@year, @month, @day) + days
+      result = ::Date.new(@year, @month, @day) + days
       self.class.new(result.year, result.month, result.day)
     end
 
@@ -157,16 +157,20 @@ module Chrono
       self + -days
     end
 
+    def hms= hms
+      Time.new(@year, @month, @day, *hms)
+    end
+
     protected
 
     def correct
       super
 
-      Date.new(@year, @month, @day)
+      ::Date.new(@year, @month, @day)
 
       @corrected
     rescue ArgumentError
-      crct = Date.new(@year, @month, 1) + (@day - 1)
+      crct = ::Date.new(@year, @month, 1) + (@day - 1)
       @year = crct.year
       @month = crct.month
       @day = crct.day
@@ -175,7 +179,7 @@ module Chrono
     end
   end
 
-  class Time < Day
+  class Time < Date
     def initialize *args
       rev_opt_args args, 6
       y, mo, d, h, m, s = args
@@ -193,7 +197,7 @@ module Chrono
     end
 
     def day
-      Day.new @year, @month, @day
+      Date.new @year, @month, @day
     end
 
     def day= d
