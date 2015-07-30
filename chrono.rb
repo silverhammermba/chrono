@@ -3,27 +3,37 @@ require 'pry'
 
 module Chrono
   class Year
+    # create the specified year, or use the current year if nil
     def initialize y = nil
-      @year = (y || ::Time.new.year).to_i
+      @year = y || ::Time.new.year
+      raise TypeError, "invalid year #{@year.inspect}" unless @year.is_a? Integer
 
-      correct if self.class == Year
+      if self.class == Year
+        correct
+        @date = ::Date.new(@year)
+      end
     end
 
     def corrected?
       @corrected
     end
 
+    # raise an error if the initialize arguments did not represent a valid point in time
     def strict
       raise RangeError, "Invalid #{self.class} (should be #{to_s})" if @corrected
       self
     end
 
-    def to_i
-      @year
+    def year
+      @date.year
     end
 
     def to_s
-      @year.to_s
+      year.to_s
+    end
+
+    def to_date
+      @date.dup
     end
 
     def inspect
@@ -31,11 +41,16 @@ module Chrono
     end
 
     def + years
-      self.class.new(@year + years)
+      self.class.new(year + years)
     end
 
     def - years
+      return year - years.year if years.is_a? Year
       self + -years
+    end
+
+    def strftime fmt
+      # TODO
     end
 
     protected
@@ -45,6 +60,8 @@ module Chrono
       @corrected = false
     end
 
+    # require "len" optional arguments, where *leading* args are assumed to be nil
+    # This is so we can easily do Chrono::Month.new(12) and fill in the current year
     def rev_opt_args args, len
       raise ArgumentError, "wrong number of arguments (#{args.length} for 0..#{len})" if args.length > len
       (len - args.length).times { args.unshift(nil) }
@@ -59,37 +76,40 @@ module Chrono
 
       super y
 
-      @month = (m || ::Time.new.month).to_i
+      @month = m || ::Time.new.month
+      raise TypeError, "invalid month #{@month.inspect}" unless @month.is_a? Integer
 
-      correct if self.class == Month
+      if self.class == Month
+        correct
+        @date = ::Date.new(@year, @month)
+      end
     end
 
-    def year
-      Year.new @year
+    def to_year
+      Year.new @date.year
     end
 
-    def year= y
-      @year = y.to_i
-
-      correct
-
-      self
-    end
-
-    def to_i
-      @month
+    def month
+      @date.month
     end
 
     def to_s
-      "#{super}-%02d" % @month
+      "#{super}-%02d" % month
+    end
+
+    def name
+      ::Date::MONTHNAMES[month]
     end
 
     def + months
-      result = ::Date.new(@year, @month) >> months
+      result = @date >> months
       self.class.new(result.year, result.month)
     end
 
     def - months
+      if months.is_a? Month
+        return (year - months.year) * 12 + month - months.month
+      end
       self + -months
     end
 
@@ -98,15 +118,12 @@ module Chrono
     def correct
       super
 
-      ::Date.new(@year, @month)
+      d = ::Date.new(@year, 1) >> (@month - 1)
 
-      @corrected
-    rescue ArgumentError
-      crct = ::Date.new(@year, 1) >> (@month - 1)
-      @year = crct.year
-      @month = crct.month
+      @corrected = @corrected || !(@year == d.year && @month == d.month)
 
-      @corrected = true
+      @year = d.year
+      @month = d.month
     end
   end
 
@@ -114,43 +131,38 @@ module Chrono
     def initialize *args
       rev_opt_args args, 3
       y, m, d = args
+
       super y, m
-      @day = (d || ::Time.new.day).to_i
 
-      correct if self.class == Date
+      @day = d || ::Time.new.day
+      raise TypeError, "invalid day #{@day.inspect}" unless @day.is_a? Integer
+
+      if self.class == Date
+        correct
+        @date = ::Date.new(@year, @month, @day)
+      end
     end
 
-    def month
-      Month.new @year, @month
+    def to_month
+      Month.new @date.year, @date.month
     end
 
-    def month= m
-      @month = m.to_i
-
-      correct
-
-      self
-    end
-
-    def to_i
-      @day
+    def day
+      @date.day
     end
 
     def to_s
-      "#{super}-%02d" % @day
+      "#{super}-%02d" % day
     end
 
     def + days
-      result = ::Date.new(@year, @month, @day) + days
+      result = @date + days
       self.class.new(result.year, result.month, result.day)
     end
 
     def - days
+      return (@date - days.to_date).to_i if days.is_a? Date
       self + -days
-    end
-
-    def to_date
-      ::Date.new(@year, @month, @day)
     end
 
     protected
@@ -158,69 +170,103 @@ module Chrono
     def correct
       super
 
-      ::Date.new(@year, @month, @day)
+      d = ::Date.new(@year, @month, 1) + (@day - 1)
 
-      @corrected
-    rescue ArgumentError
-      crct = ::Date.new(@year, @month, 1) + (@day - 1)
-      @year = crct.year
-      @month = crct.month
-      @day = crct.day
+      @corrected = @corrected || !(@year == d.year && @month == d.month && @day == d.day)
 
-      @corrected = true
+      @year = d.year
+      @month = d.month
+      @day = d.day
     end
   end
 
   class Time < Date
     def initialize *args
-      rev_opt_args args, 4
-      y, m, d, s = args
+      org_length = args.length
+      rev_opt_args args, 6
+      y, m, d, h, i, s = args
+
+      # default values for HH:MM:SS are reversed
+      if org_length == 2
+        h = i
+        i = s
+        s = nil
+      elsif org_length == 1
+        h = s
+        s = nil
+      end
 
       super y, m, d
 
-      s ||= Chrono.seconds(::Time.new)
+      t = ::Time.new
+      @hour = h || t.hour
+      @min = i || t.min
+      @sec = s || Chrono.duck_sec(t)
+      raise TypeError, "invalid hour #{@hour.inspect}" unless @hour.is_a? Integer
+      raise TypeError, "invalid minute #{@min.inspect}" unless @min.is_a? Integer
+      # TODO better way to handle fractional seconds
+      raise TypeError, "invalid second #{@sec.inspect}" unless @sec.is_a?(Integer) || @sec.is_a?(Float)
 
-      @seconds = s
-
-      correct if self.class == Time
+      if self.class == Time
+        correct
+        @time = ::Time.utc(@year, @month, @day, @hour, @min, @sec)
+      end
     end
 
-    def date
-      Date.new @year, @month, @day
+    def to_year
+      Year.new @time.year
     end
 
-    def day= d
-      @day = d.to_i
-
-      correct
-
-      self
+    def to_month
+      Month.new @time.year, @time.month
     end
 
-    def to_f
-      @seconds.to_f
+    def to_date
+      Date.new @time.year, @time.month, @time.day
     end
 
-    def to_i
-      to_f.to_i
+    def year
+      @time.year
+    end
+
+    def month
+      @time.month
+    end
+
+    def day
+      @time.day
+    end
+
+    def hour
+      @time.hour
+    end
+
+    def minute
+      @time.min
+    end
+
+    def second
+      Chrono.duck_sec @time
     end
 
     def to_s
-      "#{super} %02d:%02d:%02f" % Chrono.hms(@seconds)
+      "#{super} #{@time.strftime("%H:%M:%S")}"
     end
 
     def + seconds
-      result = to_time + seconds
+      result = @time + seconds
 
-      self.class.new(result.year, result.month, result.day, Chrono.seconds(result))
+      t = self.class.new
+      t.instance_eval { @time = result }
     end
 
     def - seconds
+      return @time - seconds.to_time if seconds.is_a? Time
       self + -seconds
     end
 
     def to_time
-      ::Time.utc(@year, @month, @day, *Chrono.hms(@seconds))
+      @time.dup
     end
 
     protected
@@ -228,14 +274,15 @@ module Chrono
     def correct
       super
 
-      crct = ::Time.utc(@year, @month, @day) + @seconds
+      crct = ::Time.utc(@year, @month, @day) + @hour * 3600 + @min * 60 + @sec
 
-      # it's corrected if the date changed
-      if [crct.year, crct.month, crct.day] != [@year, @month, @day]
+      if [crct.year, crct.month, crct.day, crct.hour, crct.min, Chrono.duck_sec(crct)] != [@year, @month, @day, @hour, @min, @sec]
         @year = crct.year
         @month = crct.month
         @day = crct.day
-        @seconds = Chrono.seconds(crct)
+        @hour = crct.hour
+        @min = crct.min
+        @sec = Chrono.duck_sec crct
 
         @corrected = true
       end
@@ -244,23 +291,9 @@ module Chrono
     end
   end
 
-  # convert hour, minute, seconds to seconds in the day. Or get seconds in the day from a ::Time
-  def self.seconds *args
-    if args.length == 1
-      time = args[0]
-      3600 * time.hour + 60 * time.min + t.sec + (t.nsec > 0 ? t.nsec / 1_000_000_000.0 : 0)
-    elsif args.length == 3
-      h, m, s = args
-      3600 * h + 60 * m + s
-    else
-      raise ArgumentError, "wrong number of arguments (#{args.length} for 1, 3)"
-    end
-  end
-
-  def self.hms seconds
-    h = seconds.to_i / 3600
-    m = (seconds % 3600).to_i / 60
-    seconds %= 60
-    [h, m, seconds]
+  # get seconds from a Time object, accounting for nanoseconds
+  def self.duck_sec t
+    return t.sec if t.nsec == 0
+    t.sec + t.nsec / (10 ** 9).to_f
   end
 end
