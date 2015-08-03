@@ -50,7 +50,7 @@ module Chrono
     end
 
     def strftime fmt
-      # TODO
+      @date.strftime fmt
     end
 
     protected
@@ -219,37 +219,43 @@ module Chrono
     end
 
     def as_date
-      as_time.to_date
+      @time.to_date
     end
 
     def hour
-      as_time.hour
+      @time.hour
     end
 
     def minute
-      as_time.min
+      @time.min
     end
 
     def second
-      Chrono.duck_sec as_time
+      Chrono.duck_sec @time
     end
 
     def to_s zone = nil
-      t = as_time
+      t = @time
       t = t.getlocal(zone) if zone
       t.strftime "%Y-%m-%d %H:%M:%S"
     end
 
     def + seconds
-      result = as_time + seconds
+      result = @time + seconds
 
       t = Time.new
       t.instance_eval { @time = result }
     end
 
     def - seconds
-      return as_time - seconds.as_time if seconds.is_a? Time
+      return @time - seconds.as_time if seconds.is_a? Time
       self + -seconds
+    end
+
+    def strftime fmt, zone = nil
+      t = @time
+      t = t.getlocal(zone) if zone
+      t.strftime fmt
     end
 
     protected
