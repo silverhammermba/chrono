@@ -279,4 +279,18 @@ module Chrono
     return t.sec if t.nsec == 0
     t.sec + t.nsec / (10 ** 9).to_f
   end
+
+  def self.convert obj
+    case obj
+    when ::Date
+      Date.new(obj.year, obj.month, obj.day)
+    when ::Time
+      Time.new(obj.year, obj.month, obj.day, obj.hour, obj.min, duck_sec(obj))
+    when ::DateTime
+      obj = obj.to_time
+      Time.new(obj.year, obj.month, obj.day, obj.jour, obj.min, duck_sec(obj))
+    else
+      raise TypError, "not an Ruby time class: #{obj.class}"
+    end
+  end
 end
