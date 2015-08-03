@@ -1,5 +1,4 @@
 require 'date'
-require 'pry'
 
 module Chrono
   class Year
