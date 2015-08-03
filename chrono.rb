@@ -23,24 +23,25 @@ module Chrono
       self
     end
 
+    def inspect
+      "#<#{self.class} #{to_s}>"
+    end
+
+    # convert to Ruby's built-in Date
+    def as_date
+      @date.dup
+    end
+
     def year
-      @date.year
+      as_date.year
     end
 
     def to_s
       year.to_s
     end
 
-    def to_date
-      @date.dup
-    end
-
-    def inspect
-      "#<#{self.class} #{to_s}>"
-    end
-
     def + years
-      self.class.new(year + years)
+      Year.new(year + years)
     end
 
     def - years
@@ -85,11 +86,11 @@ module Chrono
     end
 
     def to_year
-      Year.new @date.year
+      Year.new as_date.year
     end
 
     def month
-      @date.month
+      as_date.month
     end
 
     def to_s
@@ -101,8 +102,8 @@ module Chrono
     end
 
     def + months
-      result = @date >> months
-      self.class.new(result.year, result.month)
+      result = as_date >> months
+      Month.new(result.year, result.month)
     end
 
     def - months
@@ -143,11 +144,11 @@ module Chrono
     end
 
     def to_month
-      Month.new @date.year, @date.month
+      Month.new as_date.year, as_date.month
     end
 
     def day
-      @date.day
+      as_date.day
     end
 
     def to_s
@@ -155,12 +156,12 @@ module Chrono
     end
 
     def + days
-      result = @date + days
-      self.class.new(result.year, result.month, result.day)
+      result = as_date + days
+      Date.new(result.year, result.month, result.day)
     end
 
     def - days
-      return (@date - days.to_date).to_i if days.is_a? Date
+      return (as_date - days.as_date).to_i if days.is_a? Date
       self + -days
     end
 
@@ -212,62 +213,43 @@ module Chrono
       end
     end
 
-    def to_year
-      Year.new @time.year
+    # convert to Ruby's built-in Time
+    def as_time
+      @time.dup
     end
 
-    def to_month
-      Month.new @time.year, @time.month
-    end
-
-    def to_date
-      Date.new @time.year, @time.month, @time.day
-    end
-
-    def year
-      @time.year
-    end
-
-    def month
-      @time.month
-    end
-
-    def day
-      @time.day
+    def as_date
+      as_time.to_date
     end
 
     def hour
-      @time.hour
+      as_time.hour
     end
 
     def minute
-      @time.min
+      as_time.min
     end
 
     def second
-      Chrono.duck_sec @time
+      Chrono.duck_sec as_time
     end
 
     def to_s zone = nil
-      t = @time
+      t = as_time
       t = t.getlocal(zone) if zone
       t.strftime "%Y-%m-%d %H:%M:%S"
     end
 
     def + seconds
-      result = @time + seconds
+      result = as_time + seconds
 
-      t = self.class.new
+      t = Time.new
       t.instance_eval { @time = result }
     end
 
     def - seconds
-      return @time - seconds.to_time if seconds.is_a? Time
+      return as_time - seconds.as_time if seconds.is_a? Time
       self + -seconds
-    end
-
-    def to_time
-      @time.dup
     end
 
     protected
