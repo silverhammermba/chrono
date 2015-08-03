@@ -248,8 +248,10 @@ module Chrono
       Chrono.duck_sec @time
     end
 
-    def to_s
-      "#{super} #{@time.strftime("%H:%M:%S")}"
+    def to_s zone = nil
+      t = @time
+      t = t.getlocal(zone) if zone
+      t.strftime "%Y-%m-%d %H:%M:%S"
     end
 
     def + seconds
